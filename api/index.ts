@@ -19,6 +19,9 @@ console.log('Allowed Origins:', process.env.ALLOWED_ORIGINS);
 
 const app = express();
 
+// Trust proxy for Vercel serverless environment
+app.set('trust proxy', 1);
+
 // Database connection for serverless
 let isConnected = false;
 
@@ -46,13 +49,25 @@ const connectDB = async () => {
 // Security middleware
 app.use(helmet());
 
-// Rate limiting
+// Rate limiting - Configured for Vercel serverless
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  // Use a custom key generator for serverless
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For header if available (Vercel sets this)
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+      return Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
+    }
+    // Fallback to socket remote address
+    return req.socket?.remoteAddress || 'unknown';
   }
 });
 app.use(limiter);
@@ -70,10 +85,7 @@ const corsOptions = {
     
     const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
       'http://localhost:3000',
-      'http://localhost:3001', 
-      'http://localhost:5173',
-      'https://localhost:3000',
-      'https://localhost:3001'
+      'https://hotel-app-alpha-six.vercel.app',
     ];
     
     console.log('Allowed origins:', allowedOrigins);
