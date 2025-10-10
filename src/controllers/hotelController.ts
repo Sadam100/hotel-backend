@@ -6,6 +6,7 @@ import { createHotelSchema, updateHotelSchema } from '../validation/hotelValidat
 // GET /api/hotels - Get all hotels with optional filtering
 export const getAllHotels = async (req: Request, res: Response) => {
   try {
+    console.log('GET /api/hotels - Request received');
     const { search, roomType, minPrice, maxPrice, minRating } = req.query;
     
     // Build filter object
@@ -32,7 +33,9 @@ export const getAllHotels = async (req: Request, res: Response) => {
       filter.rating = { $gte: Number(minRating) };
     }
     
+    console.log('Filter applied:', filter);
     const hotels = await Hotel.find(filter).sort({ createdAt: -1 });
+    console.log(`Found ${hotels.length} hotels`);
     
     res.status(200).json({
       success: true,
@@ -40,6 +43,7 @@ export const getAllHotels = async (req: Request, res: Response) => {
       data: hotels
     });
   } catch (error) {
+    console.error('Error in getAllHotels:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching hotels',
@@ -197,20 +201,27 @@ export const deleteHotel = async (req: Request, res: Response): Promise<void> =>
 // GET /api/hotels/stats - Get hotel statistics
 export const getHotelStats = async (req: Request, res: Response) => {
   try {
+    console.log('GET /api/hotels/stats - Request received');
+    
     const totalHotels = await Hotel.countDocuments();
+    console.log(`Total hotels: ${totalHotels}`);
+    
     const totalRooms = await Hotel.aggregate([
       { $group: { _id: null, total: { $sum: '$availableRooms' } } }
     ]);
+    console.log('Total rooms aggregation result:', totalRooms);
     
     const averageRating = await Hotel.aggregate([
       { $group: { _id: null, average: { $avg: '$rating' } } }
     ]);
+    console.log('Average rating aggregation result:', averageRating);
     
     const roomTypeStats = await Hotel.aggregate([
       { $group: { _id: '$roomType', count: { $sum: 1 } } }
     ]);
+    console.log('Room type stats:', roomTypeStats);
     
-    res.status(200).json({
+    const response = {
       success: true,
       data: {
         totalHotels,
@@ -218,8 +229,12 @@ export const getHotelStats = async (req: Request, res: Response) => {
         averageRating: averageRating[0]?.average ? Number(averageRating[0].average.toFixed(1)) : 0,
         roomTypeDistribution: roomTypeStats
       }
-    });
+    };
+    
+    console.log('Stats response:', response);
+    res.status(200).json(response);
   } catch (error) {
+    console.error('Error in getHotelStats:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching statistics',

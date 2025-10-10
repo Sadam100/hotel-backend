@@ -3,19 +3,39 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 
-import connectDB from '../src/config/database';
 import hotelRoutes from '../src/routes/hotelRoutes';
 import { errorHandler, notFound } from '../src/middleware/errorHandler';
-import { corsOptions } from '../src/middleware/cors';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 
-// Connect to MongoDB
-connectDB();
+// Database connection for serverless
+let isConnected = false;
+
+const connectDB = async () => {
+  if (isConnected) {
+    return;
+  }
+
+  try {
+    const mongoURI = process.env.MONGODB_URI;
+    
+    if (!mongoURI) {
+      throw new Error('MONGODB_URI environment variable is not defined');
+    }
+
+    await mongoose.connect(mongoURI);
+    isConnected = true;
+    console.log('MongoDB Connected');
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    throw error;
+  }
+};
 
 // Security middleware
 app.use(helmet());
@@ -31,7 +51,25 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// CORS
+// CORS - Configure for serverless
+const corsOptions = {
+  origin: function (origin: string | undefined, callback: Function) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
 app.use(cors(corsOptions));
 
 // Body parsing middleware
@@ -46,6 +84,21 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'production'
   });
+});
+
+// Middleware to ensure DB connection before handling requests
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error('Database connection error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Database connection failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // API routes
