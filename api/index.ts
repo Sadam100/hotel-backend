@@ -11,6 +11,12 @@ import { errorHandler, notFound } from '../src/middleware/errorHandler';
 // Load environment variables
 dotenv.config();
 
+// Enhanced logging for debugging
+console.log('🚀 API Server starting...');
+console.log('Environment:', process.env.NODE_ENV);
+console.log('MongoDB URI set:', !!process.env.MONGODB_URI);
+console.log('Allowed Origins:', process.env.ALLOWED_ORIGINS);
+
 const app = express();
 
 // Database connection for serverless
@@ -51,23 +57,48 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// CORS - Configure for serverless
+// CORS - Configure for serverless with better frontend support
 const corsOptions = {
   origin: function (origin: string | undefined, callback: Function) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    console.log('CORS Origin check:', origin);
     
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) {
+      console.log('No origin - allowing request');
+      return callback(null, true);
+    }
+    
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+      'http://localhost:3000',
+      'http://localhost:3001', 
+      'http://localhost:5173',
+      'https://localhost:3000',
+      'https://localhost:3001'
+    ];
+    
+    console.log('Allowed origins:', allowedOrigins);
     
     if (allowedOrigins.includes(origin)) {
+      console.log('Origin allowed:', origin);
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.log('Origin blocked:', origin);
+      callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
@@ -75,6 +106,16 @@ app.use(cors(corsOptions));
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Handle preflight OPTIONS requests
+app.options('*', (req, res) => {
+  console.log('OPTIONS preflight request received');
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(200).end();
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -86,13 +127,27 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Enhanced request logging middleware
+app.use((req, res, next) => {
+  console.log(`\n📥 ${new Date().toISOString()} - ${req.method} ${req.path}`);
+  console.log('Headers:', {
+    origin: req.headers.origin,
+    'user-agent': req.headers['user-agent'],
+    'content-type': req.headers['content-type']
+  });
+  console.log('Query params:', req.query);
+  next();
+});
+
 // Middleware to ensure DB connection before handling requests
 app.use(async (req, res, next) => {
   try {
+    console.log('🔌 Checking database connection...');
     await connectDB();
+    console.log('✅ Database connected successfully');
     next();
   } catch (error) {
-    console.error('Database connection error:', error);
+    console.error('❌ Database connection error:', error);
     res.status(500).json({
       success: false,
       message: 'Database connection failed',

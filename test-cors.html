@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORS Test</title>
+</head>
+<body>
+    <h1>CORS Test for Hotel API</h1>
+    <div id="results"></div>
+    
+    <script>
+        const API_BASE_URL = 'https://your-app.vercel.app'; // Replace with your actual Vercel URL
+        
+        async function testCORS() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                console.log('Testing CORS from frontend...');
+                
+                // Test health endpoint
+                console.log('1. Testing health endpoint...');
+                const healthResponse = await fetch(`${API_BASE_URL}/health`);
+                const healthData = await healthResponse.json();
+                console.log('✅ Health check successful:', healthData);
+                resultsDiv.innerHTML += '<p>✅ Health check: SUCCESS</p>';
+                
+                // Test hotels endpoint
+                console.log('2. Testing hotels endpoint...');
+                const hotelsResponse = await fetch(`${API_BASE_URL}/api/hotels`);
+                const hotelsData = await hotelsResponse.json();
+                console.log('✅ Hotels endpoint successful:', hotelsData);
+                resultsDiv.innerHTML += '<p>✅ Hotels endpoint: SUCCESS</p>';
+                
+                // Test stats endpoint
+                console.log('3. Testing stats endpoint...');
+                const statsResponse = await fetch(`${API_BASE_URL}/api/hotels/stats`);
+                const statsData = await statsResponse.json();
+                console.log('✅ Stats endpoint successful:', statsData);
+                resultsDiv.innerHTML += '<p>✅ Stats endpoint: SUCCESS</p>';
+                
+                resultsDiv.innerHTML += '<p style="color: green; font-weight: bold;">🎉 All tests passed! CORS is working correctly.</p>';
+                
+            } catch (error) {
+                console.error('❌ CORS test failed:', error);
+                resultsDiv.innerHTML += `<p style="color: red;">❌ Error: ${error.message}</p>`;
+                
+                if (error.message.includes('CORS')) {
+                    resultsDiv.innerHTML += '<p style="color: red;">🔧 CORS Issue Detected:</p>';
+                    resultsDiv.innerHTML += '<ul>';
+                    resultsDiv.innerHTML += '<li>Check if your frontend domain is in ALLOWED_ORIGINS</li>';
+                    resultsDiv.innerHTML += '<li>Verify the API URL is correct</li>';
+                    resultsDiv.innerHTML += '<li>Check Vercel function logs for CORS errors</li>';
+                    resultsDiv.innerHTML += '</ul>';
+                }
+            }
+        }
+        
+        // Run the test when page loads
+        testCORS();
+    </script>
+</body>
+</html>
