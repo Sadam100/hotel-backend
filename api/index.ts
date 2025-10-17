@@ -86,6 +86,7 @@ const corsOptions = {
     const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
       'http://localhost:3000',
       'https://hotel-app-alpha-six.vercel.app',
+      'https://hotel-cloud-app.netlify.app',
     ];
     
     console.log('Allowed origins:', allowedOrigins);
